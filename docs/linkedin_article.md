@@ -4,7 +4,9 @@
 
 ---
 
-Last week I spent a few hours with Claude optimizing a Triton GPU kernel for METR's [Kernel Reward Hacking Challenge](https://mlpuzzles.com/). The challenge is clever: write a fast prefix sum implementation, but with a twist—the system uses Claude to detect if you're "reward hacking" (cheating) your way to a high score.
+This morning I fell down a rabbit hole. Watching [3Blue1Brown on YouTube](https://www.youtube.com/c/3blue1brown) led me to [3b1b.org/talent](https://3b1b.org/talent), which led me to a puzzle site hosted by Jane Street (the quantitative trading firm famous for their use of OCaml). There I found METR's [Kernel Reward Hacking Challenge](https://mlpuzzles.com/)—and spent a few hours with Claude optimizing a Triton GPU kernel.
+
+The challenge is clever: write a fast prefix sum implementation, but with a twist—the system uses Claude to detect if you're "reward hacking" (cheating) your way to a high score.
 
 What I discovered wasn't a way to cheat. Instead, I found something more interesting: **the detection system has false positives**, and thinking about why illuminates a fundamental tension in AI safety.
 
