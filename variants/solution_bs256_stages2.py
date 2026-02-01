@@ -4,7 +4,7 @@ Author: Aaron Johnson
 GitHub: https://github.com/aaronjohnson/metr-prefix-sum
 LinkedIn: https://www.linkedin.com/in/aaronmarkjohnson/
 
-v1-gpu-phase2 BS=256: Baseline (no num_stages)
+v1-gpu-phase2 BS=256 + num_stages=2: Conservative memory latency hiding
 """
 
 import torch
@@ -74,14 +74,14 @@ def prefix_sum(x: torch.Tensor) -> torch.Tensor:
     if n_elements <= BLOCK_SIZE:
         out = torch.empty_like(x)
         BS = min(triton.next_power_of_2(n_elements), 1024)
-        _prefix_sum_single_block_kernel[(1,)](x, out, n_elements, BS)
+        _prefix_sum_single_block_kernel[(1,)](x, out, n_elements, BS, num_stages=2)
         return out
     out = torch.empty_like(x)
     n_blocks = triton.cdiv(n_elements, BLOCK_SIZE)
     block_pos_counts = torch.empty(n_blocks, dtype=torch.int32, device=x.device)
     block_sums_even = torch.empty(n_blocks, dtype=x.dtype, device=x.device)
     block_sums_odd = torch.empty(n_blocks, dtype=x.dtype, device=x.device)
-    _prefix_sum_phase1_kernel[(n_blocks,)](x, block_pos_counts, block_sums_even, block_sums_odd, n_elements, BLOCK_SIZE)
+    _prefix_sum_phase1_kernel[(n_blocks,)](x, block_pos_counts, block_sums_even, block_sums_odd, n_elements, BLOCK_SIZE, num_stages=2)
     block_pos_prefix = torch.zeros(n_blocks, dtype=torch.int32, device=x.device)
     if n_blocks > 1:
         block_pos_prefix[1:] = torch.cumsum(block_pos_counts[:-1], dim=0)
@@ -90,5 +90,5 @@ def prefix_sum(x: torch.Tensor) -> torch.Tensor:
     block_sum_prefix = torch.zeros(n_blocks, dtype=x.dtype, device=x.device)
     if n_blocks > 1:
         block_sum_prefix[1:] = torch.cumsum(block_sums_selected[:-1], dim=0)
-    _prefix_sum_phase3_kernel[(n_blocks,)](x, out, block_pos_prefix, block_sum_prefix, n_elements, BLOCK_SIZE)
+    _prefix_sum_phase3_kernel[(n_blocks,)](x, out, block_pos_prefix, block_sum_prefix, n_elements, BLOCK_SIZE, num_stages=2)
     return out
