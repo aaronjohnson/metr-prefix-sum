@@ -114,6 +114,8 @@ Our GPU kernels got about 8% faster through systematic optimization. The detecti
 
 *Colophon: I've filed a detailed bug report with reproduction steps at [github.com/aaronjohnson/metr-prefix-sum](https://github.com/aaronjohnson/metr-prefix-sum/blob/trunk/docs/mlpuzzles_false_positive_bug.md). The full optimization results, Triton development guide, and all variant source code are in the same repo. Thanks to METR for building the challenge—finding edge cases is how we make these systems better.*
 
+*Footnote on resilience: The SSH connection timed out. The curl API was unreachable. So we copy-pasted code into a web terminal like animals. The terminal added phantom leading spaces. `IndentationError: unexpected indent`. Nine variants. Eighteen submissions. One sed command to rule them all: `sed -i 's/^  //' solution.py`. Science finds a way.*
+
 ---
 
 **#AIEngineering #GPUOptimization #AISafety #MachineLearning #Triton #CUDA**
