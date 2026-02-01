@@ -1,0 +1,117 @@
+# Prefix Sum with Odd-Positive Masking: GPU Optimization
+
+Triton kernel optimization for the METR MLPuzzles benchmark.
+
+## Problem
+
+Compute a prefix sum where position `i` is accumulated only if the count of positive values in `x[0:i]` (exclusive) is odd.
+
+```python
+# Example
+x = [3, -1, 2, 5, -3]
+# Position 0: positive_count_before = 0 (even) → exclude
+# Position 1: positive_count_before = 1 (odd)  → include (-1)
+# Position 2: positive_count_before = 1 (odd)  → include (2)
+# Position 3: positive_count_before = 2 (even) → exclude
+# Position 4: positive_count_before = 3 (odd)  → include (-3)
+# Output: [0, -1, 1, 1, -2]
+```
+
+## Quick Start
+
+```bash
+# Clone and setup
+git clone <repo-url>
+cd metr
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+
+# Run tests
+python prefix_sum.py
+
+# Run benchmarks (requires CUDA GPU)
+python benchmark.py --quick        # Quick test
+python benchmark.py                # Full benchmark
+python benchmark.py --help         # See all options
+```
+
+## Benchmarking
+
+The benchmark suite measures:
+- **Throughput** (GFLOP/s)
+- **Memory bandwidth** (GB/s)
+- **Stability** (coefficient of variation < 5%)
+
+Results are saved to `results/` as JSON and CSV, with plots.
+
+```bash
+# Full benchmark across sizes
+python benchmark.py --sizes 256 512 1024 2048 4096 8192 16384 32768 65536
+
+# Custom iterations for stability
+python benchmark.py --warmup 100 --iterations 500
+
+# Output to specific directory
+python benchmark.py --output my_results/
+```
+
+## Implementations
+
+| Implementation | Size Range | Description |
+|---------------|------------|-------------|
+| `prefix_sum_reference` | any n | CPU sequential (baseline) |
+| `prefix_sum_single_block` | n ≤ 1024 | Single Triton block, optimal for small inputs |
+| `prefix_sum` | any n | Multi-block with CPU Phase 2 (current bottleneck) |
+
+## Analysis Tools
+
+```bash
+# Generate theoretical roofline model
+python roofline_model.py
+
+# Generate work-depth diagram
+python work_depth_diagram.py
+```
+
+## Optimization Status
+
+### Current Bottleneck
+
+The multi-block implementation has a **CPU Phase 2** that processes elements sequentially, destroying GPU parallelism for n > 1024.
+
+```
+Phase 1 (GPU) → Phase 2 (CPU, O(n) sequential) → Phase 3 (GPU)
+                        ↑
+                   BOTTLENECK
+```
+
+### Optimization Priority
+
+1. **Move Phase 2 to GPU** - Expected ~100x speedup for large n
+2. **Operator fusion** - Reduce memory traffic
+3. **Autotune block sizes** - Optimize for specific GPU
+
+## Hardware Targets
+
+Primary: **NVIDIA A10G** (AWS G5 instances, METR MLPuzzles)
+- 31.2 TFLOPS FP32
+- 600 GB/s memory bandwidth
+- 84 SMs, 24GB GDDR6
+
+## Files
+
+```
+├── prefix_sum.py           # Main implementation
+├── benchmark.py            # Benchmarking suite
+├── roofline_model.py       # Theoretical performance analysis
+├── work_depth_diagram.py   # Parallelism visualization
+├── requirements.txt        # Dependencies
+└── results/                # Benchmark outputs (gitignored)
+```
+
+## References
+
+- [METR MLPuzzles](https://mlpuzzles.com/)
+- [Triton Documentation](https://triton-lang.org/)
+- [Parallel Prefix Sum (Blelloch)](https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf)

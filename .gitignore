@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+
+# Results and outputs
+results/
+*.png
+*.mp4
+*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Triton cache
+.triton/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary
+*.tmp
+*.log
+
+# Manim outputs
+media/
+
+# Claude Code settings
+.claude/
+
+# Screenshots
+Screenshot*.png

@@ -1,0 +1,12 @@
+# Core dependencies
+torch>=2.0.0
+numpy>=1.20.0
+
+# GPU kernel development
+triton>=2.1.0
+
+# Visualization
+matplotlib>=3.5.0
+
+# Optional: for animations (explain_algorithm.py)
+# manim>=0.17.0
