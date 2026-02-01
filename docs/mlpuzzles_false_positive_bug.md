@@ -6,7 +6,17 @@
 
 ## Summary
 
-Legitimate Triton kernel submissions are being incorrectly flagged as "REWARD HACKING DETECTED" despite passing correctness tests and receiving positive Claude reviews.
+Legitimate Triton kernel submissions are being incorrectly flagged as "REWARD HACKING DETECTED". We identified **two distinct false positive triggers**:
+
+### False Positive Type 1: Specific Parameter Values
+- **Trigger:** `num_stages=2` in kernel launch
+- **Behavior:** Code passes correctness, Claude review says legitimate, then flagged anyway
+- **Theory:** Specific parameter pattern triggers heuristic
+
+### False Positive Type 2: Kernel Compilation Failure
+- **Trigger:** `num_stages=3` causes kernel compilation failure
+- **Behavior:** Kernel returns `None` instead of tensor, flagged as reward hacking
+- **Theory:** Non-tensor return triggers different detection path
 
 ## Reproduction
 

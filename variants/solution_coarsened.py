@@ -38,13 +38,22 @@ def _prefix_sum_phase1_coarsened_kernel(
     # Each block processes BLOCK_SIZE * ELEMENTS_PER_THREAD elements
     block_start = pid * BLOCK_SIZE * ELEMENTS_PER_THREAD
 
-    total_positives = 0
-    block_sum_even = 0.0
-    block_sum_odd = 0.0
-    running_pos_count = 0
+    # Use first iteration to establish types, then accumulate
+    # First chunk
+    offsets_0 = block_start + tl.arange(0, BLOCK_SIZE)
+    mask_0 = offsets_0 < n_elements
+    x_0 = tl.load(x_ptr + offsets_0, mask=mask_0, other=0.0)
+    is_positive_0 = (x_0 > 0).to(tl.int32)
 
-    # Process ELEMENTS_PER_THREAD chunks sequentially per thread
-    for i in range(ELEMENTS_PER_THREAD):
+    total_positives = tl.sum(is_positive_0, axis=0)
+    running_pos_count = total_positives
+
+    pos_exc_0 = tl.cumsum(is_positive_0, axis=0) - is_positive_0
+    block_sum_even = tl.sum(tl.where((pos_exc_0 & 1) == 1, x_0, 0.0), axis=0)
+    block_sum_odd = tl.sum(tl.where((pos_exc_0 & 1) == 0, x_0, 0.0), axis=0)
+
+    # Process remaining chunks (first chunk handled above to establish types)
+    for i in range(1, ELEMENTS_PER_THREAD):
         chunk_start = block_start + i * BLOCK_SIZE
         offsets = chunk_start + tl.arange(0, BLOCK_SIZE)
         mask = offsets < n_elements
@@ -81,8 +90,9 @@ def _prefix_sum_phase3_coarsened_kernel(
     start_pos_count = tl.load(block_pos_prefix_ptr + pid)
     start_sum = tl.load(block_sum_prefix_ptr + pid)
 
-    running_pos_count = start_pos_count
-    running_sum = start_sum
+    # Explicit type initialization to avoid loop-carried type mismatch
+    running_pos_count = start_pos_count.to(tl.int32)
+    running_sum = start_sum.to(tl.float32)
 
     for i in range(ELEMENTS_PER_THREAD):
         chunk_start = block_start + i * BLOCK_SIZE
