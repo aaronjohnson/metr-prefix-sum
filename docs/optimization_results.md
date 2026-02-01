@@ -22,7 +22,7 @@ Best configuration: **BS=256 baseline** (no extra parameters)
 | BS=256 + num_warps=2 | 394,000 - 411,000 | 0.23-0.24 | -5% | ✓ |
 | BS=256 + num_warps=8 | 373,842 | 0.2575 | -13% | ✓ |
 | Single-block ≤1024 | 396,458 | 0.2422 | -8% | ✓ |
-| BS=256 + preallocated | TBD | TBD | TBD | Pending |
+| BS=256 + preallocated | 425,842 | 0.2248 | -1.5% | ✓ |
 
 ## Key Findings
 
@@ -48,8 +48,10 @@ Best configuration: **BS=256 baseline** (no extra parameters)
 - Suggests test input is >1024 elements OR multi-block with BS=256 is more efficient
 
 ### Pre-allocated Buffers
-- Pending test results
-- Hypothesis: May help by avoiding torch.empty() allocation overhead
+- **Does not help** (-1.5% vs baseline)
+- `torch.empty()` is already fast on GPU
+- Dictionary lookup overhead negates any savings
+- Would only help with repeated calls (benchmark runs once)
 
 ## Algorithm Overview
 
@@ -76,3 +78,12 @@ Key insight: Precompute both even-start and odd-start sums, select based on pari
 - `variants/solution_bs256_warps8.py` - num_warps=8
 - `variants/solution_single_block_1024.py` - Extended single-block threshold
 - `variants/solution_preallocated.py` - Pre-allocated buffers
+
+## Final Conclusion
+
+After exhaustive testing, **the baseline BS=256 configuration is optimal**. All attempted optimizations either:
+- Made performance worse (num_warps, single-block threshold)
+- Made marginal difference (num_stages, preallocated)
+- Triggered bugs (num_stages=2/3 false positive detection)
+
+Triton's defaults are well-tuned for this workload. The ~430K elem/sec score represents near-optimal performance for this algorithm on A10G hardware.
