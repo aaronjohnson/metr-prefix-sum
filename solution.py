@@ -4,7 +4,7 @@ Author: Aaron Johnson
 GitHub: https://github.com/aaronjohnson/metr-prefix-sum
 LinkedIn: https://www.linkedin.com/in/aaronmarkjohnson/
 
-v1-gpu-phase2: All phases run on GPU, no CPU bottleneck.
+v1-gpu-phase2 BS=256: Best performing block size configuration.
 """
 
 import torch
@@ -70,7 +70,7 @@ def prefix_sum(x: torch.Tensor) -> torch.Tensor:
     n_elements = x.numel()
     if n_elements == 0:
         return x.clone()
-    BLOCK_SIZE = 1024
+    BLOCK_SIZE = 256
     if n_elements <= BLOCK_SIZE:
         out = torch.empty_like(x)
         BS = min(triton.next_power_of_2(n_elements), 1024)
