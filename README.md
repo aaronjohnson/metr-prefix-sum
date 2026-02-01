@@ -36,6 +36,47 @@ python benchmark.py                # Full benchmark
 python benchmark.py --help         # See all options
 ```
 
+## Submission to mlpuzzles.com
+
+### Option 1: GitHub Action (Automatic)
+
+Push to `main` or `trunk` branch triggers automatic submission:
+- Runs CPU correctness tests
+- Submits to mlpuzzles.com A10G
+- Posts results to commit/PR summary
+- Updates leaderboard
+
+### Option 2: Local Submission
+
+```bash
+# Submit prefix_sum.py
+python submit.py
+
+# Submit custom file
+python submit.py --file my_solution.py
+
+# View leaderboard
+python submit.py --leaderboard
+
+# Raw JSON output
+python submit.py --json
+```
+
+### Option 3: Direct curl
+
+```bash
+curl -X POST https://puzzle.metr-dev.org/api/submit \
+  -H "Content-Type: application/json" \
+  -d "{\"code\": \"$(cat prefix_sum.py | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')\"}"
+```
+
+### Option 4: SSH Sandbox
+
+```bash
+ssh -p 2222 sandbox@puzzle.metr-dev.org  # password: puzzle
+# Then: submit solution.py
+```
+
 ## Benchmarking
 
 The benchmark suite measures:
