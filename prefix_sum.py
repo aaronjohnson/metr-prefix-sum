@@ -122,13 +122,19 @@ def prefix_sum_single_block(x: torch.Tensor) -> torch.Tensor:
 def _prefix_sum_phase1_kernel(
     x_ptr,
     block_pos_counts_ptr,  # Output: positive count per block
-    block_sums_ptr,        # Output: conditional sum per block
+    block_sums_even_ptr,   # Output: conditional sum if starting count is even
+    block_sums_odd_ptr,    # Output: conditional sum if starting count is odd
     n_elements,
     BLOCK_SIZE: tl.constexpr,
 ):
     """
     Phase 1: Each block computes its local results and aggregates.
-    Stores: (total positive count in block, total conditional sum in block)
+
+    Key insight: The mask depends on parity of (global_start + local_exclusive_count).
+    - If global_start is EVEN: include where local_exclusive_count is ODD
+    - If global_start is ODD:  include where local_exclusive_count is EVEN (flipped!)
+
+    We compute both sums so Phase 2 can select the correct one without reprocessing.
     """
     pid = tl.program_id(0)
     block_start = pid * BLOCK_SIZE
@@ -142,18 +148,24 @@ def _prefix_sum_phase1_kernel(
     is_positive = (x > 0).to(tl.int32)
     total_positives = tl.sum(is_positive, axis=0)
 
-    # For the conditional sum, we need to know the starting positive count
-    # This will be added in phase 3, for now compute with starting count = 0
+    # Compute local exclusive prefix count
     pos_count_inclusive = tl.cumsum(is_positive, axis=0)
     pos_count_exclusive = pos_count_inclusive - is_positive
 
-    include_mask = (pos_count_exclusive & 1) == 1
-    masked_x = tl.where(include_mask, x, 0.0)
-    block_conditional_sum = tl.sum(masked_x, axis=0)
+    # Mask for even start (include where local count is odd)
+    include_mask_even = (pos_count_exclusive & 1) == 1
+    masked_x_even = tl.where(include_mask_even, x, 0.0)
+    block_sum_even = tl.sum(masked_x_even, axis=0)
+
+    # Mask for odd start (include where local count is even) - FLIPPED
+    include_mask_odd = (pos_count_exclusive & 1) == 0
+    masked_x_odd = tl.where(include_mask_odd, x, 0.0)
+    block_sum_odd = tl.sum(masked_x_odd, axis=0)
 
     # Store block aggregates
     tl.store(block_pos_counts_ptr + pid, total_positives)
-    tl.store(block_sums_ptr + pid, block_conditional_sum)
+    tl.store(block_sums_even_ptr + pid, block_sum_even)
+    tl.store(block_sums_odd_ptr + pid, block_sum_odd)
 
 
 @triton.jit
@@ -207,6 +219,8 @@ def _prefix_sum_phase3_kernel(
 def prefix_sum(x: torch.Tensor) -> torch.Tensor:
     """
     Main entry point - handles arbitrary input sizes.
+
+    v1-gpu-phase2: All phases now run on GPU, eliminating the O(n) CPU bottleneck.
     """
     assert x.is_cuda, "Input must be on CUDA"
     n_elements = x.numel()
@@ -226,43 +240,33 @@ def prefix_sum(x: torch.Tensor) -> torch.Tensor:
 
     # Allocate block aggregates
     block_pos_counts = torch.empty(n_blocks, dtype=torch.int32, device=x.device)
-    block_sums = torch.empty(n_blocks, dtype=x.dtype, device=x.device)
+    block_sums_even = torch.empty(n_blocks, dtype=x.dtype, device=x.device)
+    block_sums_odd = torch.empty(n_blocks, dtype=x.dtype, device=x.device)
 
-    # Phase 1: Compute block aggregates
+    # Phase 1: Compute block aggregates (GPU)
+    # Each block computes: positive count, sum if start even, sum if start odd
     _prefix_sum_phase1_kernel[(n_blocks,)](
-        x, block_pos_counts, block_sums, n_elements, BLOCK_SIZE
+        x, block_pos_counts, block_sums_even, block_sums_odd, n_elements, BLOCK_SIZE
     )
 
-    # Phase 2: Compute prefix sums of block aggregates (on CPU for simplicity)
-    # TODO: Use another Triton kernel for large number of blocks
+    # Phase 2: Compute prefix sums of block aggregates (ALL GPU - no CPU loops!)
+    # Step 2a: Exclusive prefix sum of positive counts
     block_pos_prefix = torch.zeros(n_blocks, dtype=torch.int32, device=x.device)
-    block_sum_prefix = torch.zeros(n_blocks, dtype=x.dtype, device=x.device)
-
-    # Exclusive prefix sum
     if n_blocks > 1:
         block_pos_prefix[1:] = torch.cumsum(block_pos_counts[:-1], dim=0)
 
-        # For block sums, we need to recompute based on actual masks
-        # This is tricky because each block's sum depends on the global positive count
-        # For now, use a simple CPU loop
-        running_sum = 0.0
-        running_pos_count = 0
-        for b in range(n_blocks):
-            block_sum_prefix[b] = running_sum
+    # Step 2b: Select correct block sum based on parity of starting position count
+    # If block starts with even count -> use block_sums_even
+    # If block starts with odd count -> use block_sums_odd
+    start_is_even = (block_pos_prefix % 2) == 0
+    block_sums_selected = torch.where(start_is_even, block_sums_even, block_sums_odd)
 
-            # Recompute this block's contribution with correct starting count
-            block_start = b * BLOCK_SIZE
-            block_end = min(block_start + BLOCK_SIZE, n_elements)
-            block_x = x[block_start:block_end]
+    # Step 2c: Exclusive prefix sum of selected block sums
+    block_sum_prefix = torch.zeros(n_blocks, dtype=x.dtype, device=x.device)
+    if n_blocks > 1:
+        block_sum_prefix[1:] = torch.cumsum(block_sums_selected[:-1], dim=0)
 
-            for i, val in enumerate(block_x):
-                global_pos = running_pos_count + (block_x[:i] > 0).sum().item()
-                if global_pos % 2 == 1:
-                    running_sum += val.item()
-
-            running_pos_count += (block_x > 0).sum().item()
-
-    # Phase 3: Final computation with global offsets
+    # Phase 3: Final computation with global offsets (GPU)
     _prefix_sum_phase3_kernel[(n_blocks,)](
         x, out, block_pos_prefix, block_sum_prefix, n_elements, BLOCK_SIZE
     )
