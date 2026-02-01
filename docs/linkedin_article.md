@@ -10,6 +10,8 @@ The challenge is clever: write a fast prefix sum implementation, but with a twis
 
 What I discovered wasn't a way to cheat. Instead, I found something more interesting: **the detection system has false positives**, and thinking about why illuminates a fundamental tension in AI safety.
 
+**Video companion:** [GPU Kernel Optimization: A Visual Guide](https://www.youtube.com/watch?v=rS5QDiohb1M) — animated walkthrough of the concepts below.
+
 ## The Setup
 
 The task sounds simple: compute a prefix sum where each position is accumulated only if the count of positive values before it is odd. My approach was straightforward—implement a correct solution, then systematically optimize it.
