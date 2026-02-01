@@ -4,6 +4,10 @@ https://mlpuzzles.com/
 
 Problem: Compute prefix sum where position i is accumulated only if
 the count of positive values in x[0:i] (exclusive) is odd.
+
+Author: Aaron Johnson
+GitHub: https://github.com/aaronjohnson/metr-prefix-sum
+LinkedIn: https://www.linkedin.com/in/aaronmarkjohnson/
 """
 
 import torch
