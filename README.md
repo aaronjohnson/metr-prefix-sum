@@ -2,6 +2,18 @@
 
 Triton kernel optimization for the METR MLPuzzles benchmark.
 
+## Motivation
+
+This project originated from [3b1b.co/talent](https://3b1b.co/talent) (Grant Sanderson's talent search), which led to [mlpuzzles.com](https://mlpuzzles.com/) - a GPU kernel optimization challenge created by [METR](https://metr.org/) (Model Evaluation & Threat Research).
+
+The challenge tests ability to optimize GPU kernels on real hardware (NVIDIA A10G), with submissions scored on correctness, execution time, and reviewed by Claude Opus for reward hacking detection.
+
+This repo contains:
+- Working implementations (reference + Triton)
+- Benchmarking infrastructure for measured performance
+- Theoretical analysis tools (roofline model, work-depth diagrams)
+- CI pipeline for automated submission
+
 ## Problem
 
 Compute a prefix sum where position `i` is accumulated only if the count of positive values in `x[0:i]` (exclusive) is odd.
